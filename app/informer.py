@@ -263,7 +263,7 @@ class TGInformer:
             if not dialog.is_user:
 
                 # Certain channels have a prefix of 100, lets remove that
-                if str(abs(channel_id))[:3] == '100':
+                if str(abs(channel_id)).startswith('100'):
                     channel_id = int(str(abs(channel_id))[3:])
 
                 # Lets add it to the current list of channels we're in
@@ -346,7 +346,7 @@ class TGInformer:
                     o = await self.get_channel_info_by_group_id(channel['channel_id'])
 
                     logging.info(f"{sys._getframe().f_code.co_name}: ### Successfully identified {channel['channel_name']}")
-                
+
                 else:
                     logging.info(f"{sys._getframe().f_code.co_name}: Unable to indentify channel {channel['channel_name']}")
                     continue
@@ -370,14 +370,23 @@ class TGInformer:
             # -------------------------------
             # Determine is channel is private
             # -------------------------------
-            channel_is_private = True if (channel['channel_is_private'] or '/joinchat/' in channel['channel_url']) else False
+            channel_is_private = bool(
+                (
+                    channel['channel_is_private']
+                    or '/joinchat/' in channel['channel_url']
+                )
+            )
             if channel_is_private:
                 logging.info(f'channel_is_private: {channel_is_private}')
 
             # ------------------------------------------
             # Join if public channel and we're not in it
             # ------------------------------------------
-            if channel['channel_is_group'] is False and channel_is_private is False and channel['channel_id'] not in current_channels:
+            if (
+                channel['channel_is_group'] is False
+                and not channel_is_private
+                and channel['channel_id'] not in current_channels
+            ):
                 logging.info(f"{sys._getframe().f_code.co_name}: Joining channel: {channel['channel_id']} => {channel['channel_name']}")
                 try:
                     await self.client(JoinChannelRequest(channel=await self.client.get_entity(channel['channel_url'])))
@@ -393,9 +402,6 @@ class TGInformer:
                     logging.info('Channel is private or we were banned bc we didnt respond to bot')
                     channel['channel_is_enabled'] = False
 
-            # ------------------------------------------
-            # Join if private channel and we're not in it
-            # ------------------------------------------
             elif channel_is_private and channel['channel_id'] not in current_channels:
                 channel_obj.channel_is_private = True
                 logging.info(f"{sys._getframe().f_code.co_name}: Joining private channel: {channel['channel_id']} => {channel['channel_name']}")
@@ -457,10 +463,10 @@ class TGInformer:
         # Channel values from the API are signed ints, lets get ABS for consistency
         channel_id = abs(channel_id)
 
-        message = event.raw_text
-
         # Lets check to see if the message comes from our channel list
         if channel_id in self.channel_list:
+
+            message = event.raw_text
 
             # Lets iterate through our keywords to monitor list
             for keyword in self.keyword_list:
@@ -488,23 +494,20 @@ class TGInformer:
         # Lets set the meta data
         is_mention = message_obj.mentioned
         is_scheduled = message_obj.from_scheduled
-        is_fwd = False if message_obj.fwd_from is None else True
-        is_reply = False if message_obj.reply_to_msg_id is None else True
-        is_bot = False if message_obj.via_bot_id is None else True
+        is_fwd = message_obj.fwd_from is not None
+        is_reply = message_obj.reply_to_msg_id is not None
+        is_bot = message_obj.via_bot_id is not None
 
         if isinstance(message_obj.to_id, PeerChannel):
             is_channel = True
             is_group = False
-            is_private = False
         elif isinstance(message_obj.to_id, PeerChat):
             is_channel = False
             is_group = True
-            is_private = False
         else:
             is_channel = False
             is_group = False
-            is_private = False
-
+        is_private = False
         # We track the channel size and set it to expire after sometime, if it does we update the participant size
         if channel_id in self.channel_meta and self.channel_meta[channel_id]['channel_size'] == 0 or datetime.now() > self.channel_meta[channel_id]['channel_texpire']:
             logging.info('refreshing the channel information')
@@ -623,7 +626,6 @@ class TGInformer:
         # ------------------------------
         # TODO: functionality to poll the DB for new keywords and refresh in memory
         logging.info('### updating keyword_list')
-        pass
 
     def stop_bot_interval(self):
         self.bot_task.cancel()

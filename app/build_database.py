@@ -92,11 +92,13 @@ def init_add_channels():
     CHANNELS = [
         {
             'channel_name': 'Informer monitoring',
-            'channel_id': os.environ['TELEGRAM_NOTIFICATIONS_CHANNEL_ID'],  # Enter your own Telegram channel ID for monitoring here
+            'channel_id': os.environ['TELEGRAM_NOTIFICATIONS_CHANNEL_ID'],
             'channel_url': os.environ['TELEGRAM_NOTIFICATIONS_CHANNEL_URL'],
-            'channel_is_private': False if os.environ['TELEGRAM_NOTIFICATIONS_CHANNEL_IS_PRIVATE']=='0' else True
-        },
-
+            'channel_is_private': os.environ[
+                'TELEGRAM_NOTIFICATIONS_CHANNEL_IS_PRIVATE'
+            ]
+            != '0',
+        }
     ]
 
     # Lets import the CSV with the channel list
@@ -112,7 +114,7 @@ def init_add_channels():
                                  })
             line_count += 1
 
-    
+
     logging.info(f'Inserting {line_count} channels to database')
 
     for channel in CHANNELS:
